@@ -2,13 +2,12 @@
 extern crate alloc;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
-use alloy_sol_types::sol;
-use stylus_sdk::alloy_primitives::Address;
-use stylus_sdk::alloy_primitives::U256;
-use stylus_sdk::block::number as block_number;
-use stylus_sdk::evm;
-use stylus_sdk::evm::pay_for_memory_grow;
-use stylus_sdk::msg;
+use alloy_primitives::Address;
+use alloy_primitives::{hex, keccak256, Bytes, Log, B256, U256};
+use alloy_rlp::{Decodable, Encodable};
+use alloy_sol_types::SolType;
+use alloy_sol_types::{abi::token::WordToken, sol, SolEvent};
+use stylus_sdk::{block, evm, msg};
 
 // Define the main contract structure
 pub struct RewardPool {
@@ -20,6 +19,7 @@ pub struct RewardPool {
 }
 
 sol! {
+    #[derive(Debug, Default, PartialEq)]
     event Initialized(address indexed owner, uint256 initialFunds, uint256 rewardRate, uint256 deadline);
     event Funded(address indexed contributor, uint256 amount);
     event LikesVerified(address indexed user, uint256 verifiedLikes);
@@ -70,7 +70,7 @@ impl RewardPool {
             "Reward rate must be greater than zero"
         );
         assert!(
-            deadline > U256::from(block_number()),
+            deadline > U256::from(block::number()),
             "Deadline must be in the future"
         );
 
@@ -160,7 +160,7 @@ impl RewardPool {
     // Refund unspent rewards
     pub fn refund_unspent_rewards(&mut self) {
         assert!(
-            U256::from(block_number()) > self.deadline,
+            U256::from(block::number()) > self.deadline,
             "Deadline not reached"
         );
 
