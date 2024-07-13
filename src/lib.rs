@@ -1,16 +1,14 @@
-
-
 #![cfg_attr(not(feature = "std"), no_std)]
-extern crate alloc; 
-use stylus_sdk::alloy_primitives::U256;
+extern crate alloc;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
-use alloc::vec::Vec;
-use stylus_sdk::msg;
-use stylus_sdk::evm;
-use stylus_sdk::block::number as block_number;
-use stylus_sdk::{alloy_primitives::Address, alloy_sol_types::SolEvent};
-use alloy_sol_types::{sol, SolEnum, SolType};
+use alloy_primitives::Address;
+use alloy_primitives::{hex, keccak256, Bytes, Log, B256, U256};
+use alloy_rlp::{Decodable, Encodable};
+use alloy_sol_types::SolType;
+use alloy_sol_types::{abi::token::WordToken, sol, SolEvent};
+use stylus_sdk::{block, evm, msg};
+
 // Define the main contract structure
 pub struct RewardPool {
     owner: Address,
@@ -21,30 +19,13 @@ pub struct RewardPool {
 }
 
 sol! {
+    #[derive(Debug, Default, PartialEq)]
     event Initialized(address indexed owner, uint256 initialFunds, uint256 rewardRate, uint256 deadline);
-}
-
-sol! {
     event Funded(address indexed contributor, uint256 amount);
-}
-
-sol! {
     event LikesVerified(address indexed user, uint256 verifiedLikes);
-}
-
-sol! {
     event RewardDistributed(address indexed user, uint256 amount);
-}
-
-sol! {
     event SettingsUpdated(uint256 new_reward_rate, uint256 new_deadline);
-}
-
-sol! {
     event Refunded(address indexed contributor, uint256 amount);
-}
-
-sol! {
     event PostSubmitted(address indexed user, string post_link, uint256 claimed_likes);
 }
 
@@ -72,12 +53,26 @@ impl RewardPool {
     }
 
     // Initialize the reward pool
-    pub fn initialize_reward_pool(&mut self, initial_funds: U256, reward_rate: U256, deadline: U256) {
+    pub fn initialize_reward_pool(
+        &mut self,
+        initial_funds: U256,
+        reward_rate: U256,
+        deadline: U256,
+    ) {
         assert!(msg::sender() == self.owner, "Only owner can initialize");
         assert!(self.total_funds == U256::ZERO, "Already initialized");
-        assert!(initial_funds > U256::ZERO, "Initial funds must be greater than zero");
-        assert!(reward_rate > U256::ZERO, "Reward rate must be greater than zero");
-        assert!(deadline > U256::from(block_number()), "Deadline must be in the future");
+        assert!(
+            initial_funds > U256::ZERO,
+            "Initial funds must be greater than zero"
+        );
+        assert!(
+            reward_rate > U256::ZERO,
+            "Reward rate must be greater than zero"
+        );
+        assert!(
+            deadline > U256::from(block::number()),
+            "Deadline must be in the future"
+        );
 
         self.reward_rate = reward_rate;
         self.deadline = deadline;
@@ -96,14 +91,19 @@ impl RewardPool {
     // Fund the reward pool
     pub fn fund_reward_pool(&mut self, amount: U256) {
         assert!(amount > U256::ZERO, "Amount must be greater than zero");
-        
+
         // Correctly increment total_funds by the amount once
         self.total_funds += amount;
         // Fetch the current contribution, if any, or default to ZERO
-        let current_contribution = self.contributors.get(&msg::sender()).unwrap_or(&U256::ZERO).clone();
+        let current_contribution = self
+            .contributors
+            .get(&msg::sender())
+            .unwrap_or(&U256::ZERO)
+            .clone();
         // Update the contributor's total contribution
-        self.contributors.insert(msg::sender(), current_contribution + amount);
-    
+        self.contributors
+            .insert(msg::sender(), current_contribution + amount);
+
         // Trigger an event to log the funding
         evm::log(Funded {
             contributor: msg::sender(),
@@ -133,7 +133,10 @@ impl RewardPool {
     // Distribute rewards
     pub fn distribute_rewards(&mut self, user_address: Address, verified_likes: U256) -> bool {
         let reward_amount = self.calculate_reward(verified_likes);
-        assert!(reward_amount <= self.total_funds, "Insufficient funds in reward pool");
+        assert!(
+            reward_amount <= self.total_funds,
+            "Insufficient funds in reward pool"
+        );
 
         // Perform the transfer using `transfer_eth`
         // Note: `transfer_eth` might return an error, which should be handled appropriately
@@ -149,17 +152,24 @@ impl RewardPool {
                 });
 
                 true
-            },
+            }
             Err(_) => false,
         }
     }
 
     // Refund unspent rewards
     pub fn refund_unspent_rewards(&mut self) {
-        assert!(U256::from(block_number()) > self.deadline, "Deadline not reached");
-        
+        assert!(
+            U256::from(block::number()) > self.deadline,
+            "Deadline not reached"
+        );
+
         let contributor = msg::sender();
-        let contribution = self.contributors.get(&contributor).unwrap_or(&U256::ZERO).clone();
+        let contribution = self
+            .contributors
+            .get(&contributor)
+            .unwrap_or(&U256::ZERO)
+            .clone();
         assert!(contribution > U256::ZERO, "No contribution to refund");
 
         // Calculate the refund amount
@@ -175,7 +185,7 @@ impl RewardPool {
                     contributor: contributor,
                     amount: refund_amount,
                 });
-            },
+            }
             Err(_) => {
                 // Handle the error appropriately
                 panic!("Transfer failed");
@@ -185,13 +195,19 @@ impl RewardPool {
 
     // Check wallet balance
     pub fn check_wallet_balance(&self, wallet_address: Address) -> U256 {
-        self.contributors.get(&wallet_address).unwrap_or(&U256::ZERO).clone()
+        self.contributors
+            .get(&wallet_address)
+            .unwrap_or(&U256::ZERO)
+            .clone()
     }
 
     // Update settings
     pub fn update_settings(&mut self, new_reward_rate: U256, new_deadline: U256) {
-        assert!(msg::sender() == self.owner, "Only owner can update settings");
-        
+        assert!(
+            msg::sender() == self.owner,
+            "Only owner can update settings"
+        );
+
         self.reward_rate = new_reward_rate;
         self.deadline = new_deadline;
 
@@ -209,18 +225,9 @@ impl RewardPool {
     }
 }
 
-
-// Implement the `Contract` trait
-impl stylus_sdk::Contract for RewardPool {
-    fn constructor(&mut self) {
-        *self = Self::new();
-    }
-}
-
 // Entry point
 #[no_mangle]
 pub extern "C" fn deploy() {
     let contract = RewardPool::new();
     unimplemented!()
 }
-
