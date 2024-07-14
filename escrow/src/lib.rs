@@ -14,7 +14,6 @@ use stylus_sdk::{
 sol_storage! {
     #[entrypoint]
     pub struct RewardPool {
-        address owner;
         uint reward_rate;
         uint total_funds;
         string required_string;
