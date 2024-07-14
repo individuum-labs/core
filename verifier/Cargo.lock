@@ -716,7 +716,6 @@ dependencies = [
  "elliptic-curve",
  "once_cell",
  "sha2",
- "signature",
 ]
 
 [[package]]
@@ -1267,21 +1266,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
-name = "stylus-hello-world"
-version = "0.1.6"
-dependencies = [
- "alloy-primitives",
- "alloy-rlp",
- "alloy-sol-macro",
- "alloy-sol-types",
- "getrandom",
- "hex",
- "k256",
- "mini-alloc",
- "stylus-sdk",
-]
-
-[[package]]
 name = "stylus-proc"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1468,6 +1452,17 @@ name = "valuable"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
+
+[[package]]
+name = "verifier"
+version = "0.1.0"
+dependencies = [
+ "alloy-sol-types",
+ "getrandom",
+ "k256",
+ "mini-alloc",
+ "stylus-sdk",
+]
 
 [[package]]
 name = "version_check"
